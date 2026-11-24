@@ -14,7 +14,7 @@ try {
   else joinCode = localStorage.getItem("cellar-join");
 } catch (e) { joinCode = new URLSearchParams(location.search).get("join"); }
 
-let myId = null, photoUrls = {};
+let myId = null, photoUrls = {}, isAdmin = false, editingWine = null;
 let sb = null, me = null, wines = [], reviews = [], openRate = null, confirmDel = null;
 
 function flash(text, isErr) {
@@ -47,7 +47,7 @@ async function route(session) {
   if (!session) { me = null; show("app", false); show("denied", false); show("join", false); show("login", true); return; }
   show("login", false);
   const email = (session.user.email || "").toLowerCase();
-  const { data, error } = await withTimeout(sb.from("crew").select("name,email"));
+  const { data, error } = await withTimeout(sb.from("crew").select("*"));
   if (error) {
     show("app", false); show("join", false);
     $("denied-text").textContent = error.message === "timeout"
@@ -66,8 +66,8 @@ async function route(session) {
   }
   try { localStorage.removeItem("cellar-join"); } catch (e) {}
   if (location.search) history.replaceState(null, "", location.pathname);
-  me = row.name; myId = session.user.id;
-  $("who").textContent = "Signed in as " + me;
+  me = row.name; myId = session.user.id; isAdmin = row.is_admin === true;
+  $("who").textContent = "Signed in as " + me + (isAdmin ? " · admin" : "");
   show("denied", false); show("join", false); show("app", true);
   await load();
 }
@@ -213,6 +213,13 @@ function render() {
         p.append(el("b", null, r.reviewer));
         p.append(document.createTextNode(" " + "★".repeat(r.stars) + " · " + BUY[r.buy]));
         if (r.note) { p.append(document.createTextNode(" · ")); p.append(el("span", "note", "“" + r.note + "”")); }
+        if (isAdmin && r.reviewer !== me) {
+          const ed = el("button", "linkish", "Edit"); ed.type = "button";
+          ed.setAttribute("aria-label", "Edit " + r.reviewer + "'s review");
+          const key = w.id + "|" + r.reviewer;
+          ed.onclick = () => { openRate = openRate === key ? null : key; render(); };
+          p.append(ed);
+        }
         rv.append(p);
       });
       body.append(rv);
@@ -221,28 +228,39 @@ function render() {
     const acts = el("div", "actions");
     const mine = s.rs.find(r => r.reviewer === me);
     const rb = el("button", "btn small", mine ? "Edit my review" : "Rate this wine"); rb.type = "button";
-    rb.onclick = () => { openRate = openRate === w.id ? null : w.id; render(); };
+    const myKey = w.id + "|" + me;
+    rb.onclick = () => { openRate = openRate === myKey ? null : myKey; render(); };
     acts.append(rb);
-    if (confirmDel === w.id) {
+    const canManage = isAdmin || w.added_by === me;
+    if (canManage) {
+      const eb = el("button", "linkish", "Edit bottle"); eb.type = "button";
+      eb.onclick = () => startEditWine(w);
+      acts.append(eb);
+    }
+    // Only the person who added a bottle, or an admin, can remove it.
+    if (canManage && confirmDel === w.id) {
       const yes = el("button", "btn small ghost", "Yes, remove it and its reviews"); yes.type = "button";
       yes.onclick = () => removeWine(w.id);
       const no = el("button", "linkish", "Keep it"); no.type = "button"; no.onclick = () => { confirmDel = null; render(); };
       acts.append(yes, no);
-    } else {
+    } else if (canManage) {
       const d = el("button", "linkish", "Remove bottle"); d.type = "button"; d.onclick = () => { confirmDel = w.id; render(); };
       acts.append(d);
     }
     body.append(acts);
-    if (openRate === w.id) body.append(rateForm(w, mine));
+    if (openRate && openRate.startsWith(w.id + "|")) {
+      const who = openRate.slice(w.id.length + 1);
+      body.append(rateForm(w, s.rs.find(r => r.reviewer === who), who));
+    }
     card.append(body);
     list.append(card);
   });
 }
 
-function rateForm(w, mine) {
+function rateForm(w, mine, who) {
   let stars = mine ? mine.stars : 0, buy = mine ? mine.buy : "";
   const f = el("div", "rate");
-  f.append(el("div", "label", "Your score, " + me));
+  f.append(el("div", "label", who === me ? "Your score, " + me : "Editing " + who + "'s review (admin)"));
   const sp = el("div", "starpick");
   const paint = () => [...sp.children].forEach((b, i) => b.classList.toggle("on", i < stars));
   for (let i = 1; i <= 5; i++) {
@@ -304,7 +322,7 @@ function rateForm(w, mine) {
       }
       photo_path = path; st.textContent = "Saving…";
     } else if (removePhoto) photo_path = null;
-    const row = { wine_id: w.id, reviewer: me, stars, buy, note: ta.value.trim() || null, updated_at: new Date().toISOString() };
+    const row = { wine_id: w.id, reviewer: who, stars, buy, note: ta.value.trim() || null, updated_at: new Date().toISOString() };
     if (newPhoto || removePhoto || oldPath) row.photo_path = photo_path; // only touch photos when there is one
     const { error } = await withTimeout(sb.from("reviews").upsert(row));
     if (error) { save.disabled = false; st.className = "status err"; st.textContent = "Couldn't save just now. Try again."; return; }
@@ -332,8 +350,22 @@ function fillSelects() {
   const f = $("filter"); f.replaceChildren(new Option("All wineries", ""));
   WINERIES.forEach(x => f.add(new Option(x, x)));
 }
-$("show-add").onclick = () => { show("add-panel", true); $("f-winery").focus(); };
-$("add-cancel").onclick = () => { show("add-panel", false); $("add-form").reset(); $("add-status").textContent = ""; };
+function closeWineForm() {
+  editingWine = null; show("add-panel", false); $("add-form").reset(); $("add-status").textContent = "";
+  $("add-title").textContent = "Add a bottle"; $("add-btn").textContent = "Add bottle";
+}
+function startEditWine(w) {
+  editingWine = w.id;
+  $("f-winery").value = WINERIES.includes(w.winery) ? w.winery : "Somewhere else";
+  $("f-name").value = w.name || ""; $("f-vintage").value = w.vintage || "";
+  $("f-price").value = w.price != null ? Number(w.price).toFixed(2).replace(/\.00$/, "") : "";
+  $("f-bottles").value = w.bottles != null ? w.bottles : "";
+  $("add-title").textContent = "Edit bottle"; $("add-btn").textContent = "Save changes";
+  $("add-status").textContent = ""; show("add-panel", true);
+  $("add-panel").scrollIntoView({ behavior: "smooth", block: "start" }); $("f-name").focus({ preventScroll: true });
+}
+$("show-add").onclick = () => { closeWineForm(); show("add-panel", true); $("f-winery").focus(); };
+$("add-cancel").onclick = closeWineForm;
 $("add-form").addEventListener("submit", async ev => {
   ev.preventDefault();
   const st = $("add-status"); st.className = "status";
@@ -342,14 +374,18 @@ $("add-form").addEventListener("submit", async ev => {
   if (vintage && !/^(19|20)\d\d$/.test(vintage)) return bad("Vintage should be a year like 2021, or blank for NV.");
   if (price && !/^\d+(\.\d{1,2})?$/.test(price)) return bad("Price should be a number like 35 or 42.50.");
   if (bottles && !/^\d{1,3}$/.test(bottles)) return bad("Bottles should be a whole number.");
-  $("add-btn").disabled = true; st.textContent = "Adding…";
-  const { error } = await sb.from("wines").insert({
+  const fields = {
     winery: $("f-winery").value, name: $("f-name").value.trim(),
-    vintage: vintage || null, price: price ? Number(price) : null, bottles: bottles ? Number(bottles) : null, added_by: me
-  });
+    vintage: vintage || null, price: price ? Number(price) : null, bottles: bottles ? Number(bottles) : null
+  };
+  $("add-btn").disabled = true; st.textContent = editingWine ? "Saving…" : "Adding…";
+  const { data, error } = editingWine
+    ? await withTimeout(sb.from("wines").update(fields).eq("id", editingWine).select("id"))
+    : await withTimeout(sb.from("wines").insert({ ...fields, added_by: me }));
   $("add-btn").disabled = false;
-  if (error) return bad("Couldn't add it just now. Try again.");
-  $("add-form").reset(); show("add-panel", false); st.textContent = "";
+  if (error) return bad(editingWine ? "Couldn't save the changes. Try again." : "Couldn't add it just now. Try again.");
+  if (editingWine && (!data || !data.length)) return bad("Only the person who added this bottle, or an admin, can change it.");
+  closeWineForm();
   await load();
 });
 $("filter").onchange = render; $("sort").onchange = render;
