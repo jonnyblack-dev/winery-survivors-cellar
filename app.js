@@ -28,9 +28,14 @@ async function boot() {
     $("boot").className = "status err"; return;
   }
   sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-  sb.auth.onAuthStateChange((_evt, session) => { route(session); });
-  const { data } = await sb.auth.getSession();
-  route(data.session);
+  // Supabase holds a lock while this callback runs, so any database call made
+  // inside it waits forever. Defer the work until the callback has returned.
+  sb.auth.onAuthStateChange((_evt, session) => { setTimeout(() => route(session), 0); });
+}
+
+// Give up on a request that hangs, so the page can say so instead of sitting still.
+function withTimeout(promise, ms = 15000) {
+  return Promise.race([promise, new Promise(res => setTimeout(() => res({ error: { message: "timeout" } }), ms))]);
 }
 
 let routing = null;
@@ -41,7 +46,7 @@ async function route(session) {
   if (!session) { me = null; show("app", false); show("denied", false); show("join", false); show("login", true); return; }
   show("login", false);
   const email = (session.user.email || "").toLowerCase();
-  const { data, error } = await sb.from("crew").select("name,email");
+  const { data, error } = await withTimeout(sb.from("crew").select("name,email"));
   const row = (data || []).find(r => r.email.toLowerCase() === email);
   if (error || !row) {
     show("app", false);
@@ -71,14 +76,23 @@ $("login-form").addEventListener("submit", async ev => {
 });
 $("join-form").addEventListener("submit", async ev => {
   ev.preventDefault();
-  const st = $("join-status"); st.className = "status"; st.textContent = "Joining…";
-  $("join-btn").disabled = true;
-  const { error } = await sb.rpc("join_crew", { code: joinCode, display_name: $("join-name").value.trim() });
-  $("join-btn").disabled = false;
-  if (error) { st.className = "status err"; st.textContent = error.message; return; }
-  st.textContent = "";
+  const st = $("join-status"), btn = $("join-btn"), name = $("join-name").value.trim();
+  if (!name) { st.className = "status err"; st.textContent = "Type your first name first."; return; }
+  if (!joinCode) { st.className = "status err"; st.textContent = "This page lost the join code. Open the join link from Jonny again."; return; }
+  btn.disabled = true; btn.textContent = "Joining…"; st.className = "status"; st.textContent = "Adding you to the crew…";
+  const { error } = await withTimeout(sb.rpc("join_crew", { code: joinCode, display_name: name }));
+  if (error) {
+    btn.disabled = false; btn.textContent = "Join";
+    st.className = "status err";
+    st.textContent = error.message === "timeout"
+      ? "That's taking too long. Check your internet connection and try again."
+      : error.message || "Something went wrong. Try again.";
+    return;
+  }
+  st.className = "status ok"; st.textContent = "Welcome aboard, " + name + "! Opening the cellar…";
   const { data } = await sb.auth.getSession();
-  routing = null; route(data.session);
+  routing = null;
+  setTimeout(() => { btn.disabled = false; btn.textContent = "Join"; st.textContent = ""; route(data.session); }, 900);
 });
 const signOut = async () => { await sb.auth.signOut(); routing = null; route(null); };
 $("signout").onclick = signOut; $("denied-out").onclick = signOut;
