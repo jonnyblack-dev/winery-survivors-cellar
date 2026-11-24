@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Winery Survivors Cellar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column; a crew bar up top, then a ranked list of bottles, each with its own rating drawer. */
+:root{
+  --bg:#f3f1f4; --surface:#ffffff; --fg:#231a22; --muted:#6c6170; --line:#e2dce3;
+  --garnet:#7d1f3a; --garnet-soft:#f3e3e8; --gold:#b08516; --gold-soft:#f7efd6;
+  --yes:#2f7a4b; --maybe:#a5700f; --no:#a23838;
+  --display:"Bricolage Grotesque",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#17121a; --surface:#221b25; --fg:#f1eaf0; --muted:#a99cab; --line:#372d3a;
+  --garnet:#e0718f; --garnet-soft:#3a1f2a; --gold:#e2bb4f; --gold-soft:#3a3016;
+  --yes:#6cc08b; --maybe:#e0a94a; --no:#e57d7d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#17121a; --surface:#221b25; --fg:#f1eaf0; --muted:#a99cab; --line:#372d3a;
+  --garnet:#e0718f; --garnet-soft:#3a1f2a; --gold:#e2bb4f; --gold-soft:#3a3016;
+  --yes:#6cc08b; --maybe:#e0a94a; --no:#e57d7d; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
+h1{font-size:clamp(1.8rem,5vw,2.6rem);font-weight:800;letter-spacing:-.02em;line-height:1.05}
+h1 span{color:var(--garnet)}
+.sub{color:var(--muted);margin:6px 0 0;max-width:60ch}
+.label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--garnet);outline-offset:2px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+.crew{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 14px;font-weight:500}
+.chip[aria-pressed="true"]{background:var(--garnet);border-color:var(--garnet);color:var(--bg)}
+.who-note{margin:10px 0 0;color:var(--muted);font-size:.9rem}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;justify-content:space-between}
+.toolbar .controls{display:flex;flex-wrap:wrap;gap:10px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+select,input,textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-width:100%}
+textarea{resize:vertical;min-height:70px;width:100%}
+.btn{border:0;border-radius:10px;padding:9px 16px;font-weight:600;background:var(--garnet);color:var(--bg)}
+.btn.ghost{background:transparent;color:var(--garnet);border:1px solid var(--garnet)}
+.btn.small{padding:6px 12px;font-size:.88rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.status{font-size:.9rem;color:var(--muted)}
+.status.err{color:var(--no)}
+form.add{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+form.add .full{grid-column:1/-1}
+@media (max-width:520px){form.add{grid-template-columns:1fr}}
+.list{display:flex;flex-direction:column;gap:12px}
+.wine{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px 14px}
+.rank{font-family:var(--display);font-weight:800;font-size:1.5rem;color:var(--muted);line-height:1.1;font-variant-numeric:tabular-nums}
+.wine.top .rank{color:var(--gold)}
+.body{min-width:0;display:flex;flex-direction:column;gap:8px}
+.winery{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--garnet)}
+.wine h3{font-size:1.2rem;font-weight:600}
+.meta{color:var(--muted);font-size:.88rem}
+.score{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.stars{color:var(--gold);letter-spacing:2px;font-size:1.05rem}
+.avg{font-weight:600;font-variant-numeric:tabular-nums}
+.pill{font-size:.8rem;font-weight:600;border-radius:999px;padding:2px 10px;background:var(--bg);border:1px solid var(--line)}
+.pill.yes{color:var(--yes)} .pill.maybe{color:var(--maybe)} .pill.no{color:var(--no)}
+.pill.verdict{background:var(--gold-soft);border-color:transparent;color:var(--fg)}
+.reviews{display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:8px}
+.rev{font-size:.92rem}
+.rev b{font-weight:600}
+.rev .note{color:var(--muted)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.rate{display:flex;flex-direction:column;gap:10px;background:var(--garnet-soft);border-radius:10px;padding:12px}
+.starpick{display:flex;gap:4px}
+.starpick button{background:none;border:0;font-size:1.6rem;line-height:1;color:var(--line);padding:2px}
+.starpick button.on{color:var(--gold)}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 12px}
+.seg button[aria-pressed="true"]{border-color:var(--garnet);background:var(--garnet);color:var(--bg)}
+.empty{text-align:center;color:var(--muted);padding:32px 16px}
+.empty h2{color:var(--fg);font-size:1.3rem;margin-bottom:6px}
+.linkish{background:none;border:0;color:var(--muted);text-decoration:underline;font-size:.85rem;padding:0}
+@media (prefers-reduced-motion:no-preference){.wine{transition:border-color .2s}.wine:hover{border-color:var(--garnet)}}
+.login{max-width:420px}
+.login form{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.login input{width:100%}
+.topbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="label">Barossa · Eden · Clare · Adelaide Hills · Nov 2026</div>
+    <h1>Winery Survivors <span>Cellar</span></h1>
+    <p class="sub">Log the bottles you brought home, rate them as you open them, and see which ones the crew wants to order again.</p>
+  </header>
+
+  <p class="status" id="boot">Opening the cellar…</p>
+
+  <section class="panel login" id="login" hidden>
+    <h2 style="font-size:1.15rem">Sign in</h2>
+    <p class="sub" style="margin-top:4px">Type your email and we'll send you a sign-in link. No password needed.</p>
+    <form id="login-form">
+      <label class="label" for="email">Email address</label>
+      <input id="email" type="email" required autocomplete="email" placeholder="you@example.com">
+      <button class="btn" type="submit" id="login-btn">Email me a sign-in link</button>
+      <span class="status" id="login-status"></span>
+    </form>
+  </section>
+
+  <section class="panel" id="denied" hidden>
+    <h2 style="font-size:1.15rem">You're not on the crew list yet</h2>
+    <p class="sub" id="denied-text">Ask Jonny to add your email address, then sign in again.</p>
+    <p><button class="btn ghost small" type="button" id="denied-out">Sign out</button></p>
+  </section>
+
+  <div id="app" hidden style="display:flex;flex-direction:column;gap:20px">
+    <div class="topbar">
+      <p class="who-note" id="who" style="margin:0"></p>
+      <button class="linkish" type="button" id="signout">Sign out</button>
+    </div>
+
+    <section class="panel" id="add-panel" hidden>
+      <h2 style="font-size:1.15rem;margin-bottom:12px">Add a bottle</h2>
+      <form class="add" id="add-form">
+        <div class="field"><label class="label" for="f-winery">Winery</label>
+          <select id="f-winery" required></select></div>
+        <div class="field"><label class="label" for="f-name">Wine</label>
+          <input id="f-name" required maxlength="80" placeholder="e.g. Riesling, Shiraz Cabernet"></div>
+        <div class="field"><label class="label" for="f-vintage">Vintage</label>
+          <input id="f-vintage" inputmode="numeric" maxlength="4" placeholder="e.g. 2022, blank for NV"></div>
+        <div class="field"><label class="label" for="f-price">Price per bottle (A$)</label>
+          <input id="f-price" inputmode="decimal" maxlength="7" placeholder="optional"></div>
+        <div class="field full"><label class="label" for="f-bottles">Bottles you bought</label>
+          <input id="f-bottles" inputmode="numeric" maxlength="3" placeholder="optional"></div>
+        <div class="actions full">
+          <button class="btn" type="submit" id="add-btn">Add bottle</button>
+          <button class="btn ghost" type="button" id="add-cancel">Cancel</button>
+          <span class="status" id="add-status"></span>
+        </div>
+      </form>
+    </section>
+
+    <div class="toolbar">
+      <div class="controls">
+        <div class="field"><label class="label" for="filter">Winery</label><select id="filter"></select></div>
+        <div class="field"><label class="label" for="sort">Sort by</label>
+          <select id="sort">
+            <option value="score">Highest rated</option>
+            <option value="buy">Most "buy again"</option>
+            <option value="new">Newest added</option>
+            <option value="winery">Winery A to Z</option>
+          </select></div>
+      </div>
+      <button class="btn" id="show-add" type="button">+ Add a bottle</button>
+    </div>
+
+    <p class="status" id="msg" hidden></p>
+    <div class="list" id="list"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
