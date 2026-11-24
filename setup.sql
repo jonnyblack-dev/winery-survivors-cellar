@@ -69,5 +69,5 @@ create policy reviews_add    on public.reviews for insert to authenticated with 
 create policy reviews_edit   on public.reviews for update to authenticated using (reviewer = public.my_name()) with check (reviewer = public.my_name());
 create policy reviews_remove on public.reviews for delete to authenticated using (reviewer = public.my_name());
 
--- Next: run setup-join.sql to turn on sign-up with a join link.
+-- Next: run setup-grants.sql, then setup-join.sql to turn on sign-up with a join link.
 -- (Or add people by hand in Table Editor > crew: their email and first name.)
