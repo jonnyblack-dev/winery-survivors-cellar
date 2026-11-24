@@ -1,1 +1,19 @@
-# winery-survivors-cellar
+# Winery Survivors Cellar
+
+A small private website where the crew from the November 2026 South Australia wine weekend logs the bottles they bought, rates them, and votes on which to reorder.
+
+- Hosting: GitHub Pages (free), straight from this repository.
+- Database and sign-in: Supabase (free plan). Sign-in is by emailed link; only emails in the `crew` table can see or change anything.
+
+## Files
+- `index.html`, `app.js`: the site.
+- `config.js`: the Supabase project URL and anon (public) key. Never put the service_role key here.
+- `setup.sql`: run once in Supabase SQL Editor to create the tables and access rules.
+- `setup-join.sql`: run once after `setup.sql` to turn on sign-up by join link. It prints the secret join code.
+
+## Adding someone
+Send them the join link: `https://jonnyblack-dev.github.io/winery-survivors-cellar/?join=CODE`, where CODE comes from running `setup-join.sql`. They sign in with their email, type their first name, and they're in.
+To stop old links working, change the code (see the bottom of `setup-join.sql`).
+You can also add people by hand: Supabase > Table Editor > `crew` > Insert row.
+
+Note: free Supabase projects pause after a week with no visits. If the site stops loading, open the Supabase dashboard and click Restore.
