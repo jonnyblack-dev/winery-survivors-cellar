@@ -14,6 +14,7 @@ try {
   else joinCode = localStorage.getItem("cellar-join");
 } catch (e) { joinCode = new URLSearchParams(location.search).get("join"); }
 
+let myId = null, photoUrls = {};
 let sb = null, me = null, wines = [], reviews = [], openRate = null, confirmDel = null;
 
 function flash(text, isErr) {
@@ -65,7 +66,7 @@ async function route(session) {
   }
   try { localStorage.removeItem("cellar-join"); } catch (e) {}
   if (location.search) history.replaceState(null, "", location.pathname);
-  me = row.name;
+  me = row.name; myId = session.user.id;
   $("who").textContent = "Signed in as " + me;
   show("denied", false); show("join", false); show("app", true);
   await load();
@@ -114,8 +115,41 @@ async function load() {
   ]);
   if (w.error || r.error) { flash("Couldn't load the reviews. Reload the page to try again.", true); return; }
   wines = w.data; reviews = r.data; flash("");
+  await signPhotos();
   render();
 }
+/* ---------- photos ---------- */
+const BUCKET = "wine-photos";
+// The bucket is private, so each photo needs a short-lived signed link.
+async function signPhotos() {
+  const paths = reviews.map(r => r.photo_path).filter(p => p && !photoUrls[p]);
+  if (!paths.length) return;
+  const { data, error } = await withTimeout(sb.storage.from(BUCKET).createSignedUrls(paths, 60 * 60 * 6));
+  if (error || !data) return;
+  data.forEach(d => { if (d.signedUrl && d.path) photoUrls[d.path] = d.signedUrl; });
+}
+// Shrink a phone photo to at most 1280px on its long side, as a JPEG.
+async function shrinkPhoto(file) {
+  let img;
+  try { img = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+  catch (e) {
+    img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
+  }
+  const w = img.width || img.naturalWidth, h = img.height || img.naturalHeight;
+  const scale = Math.min(1, 1280 / Math.max(w, h));
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error("shrink")), "image/jpeg", 0.8));
+}
+function photoEl(path, cls, alt) {
+  const url = path && photoUrls[path];
+  if (!url) return null;
+  const a = el("a", cls); a.href = url; a.target = "_blank"; a.rel = "noopener";
+  const img = el("img"); img.src = url; img.alt = alt; img.loading = "lazy";
+  a.append(img); return a;
+}
+
 document.addEventListener("visibilitychange", () => { if (!document.hidden && me) load(); });
 
 function statsFor(id) {
@@ -150,6 +184,9 @@ function render() {
     const card = el("article", "wine" + (ranked && i === 0 && s.rs.length ? " top" : ""));
     card.append(el("div", "rank", String(i + 1)));
     const body = el("div", "body");
+    const withPhoto = s.rs.filter(r => r.photo_path && photoUrls[r.photo_path])
+      .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))[0];
+    if (withPhoto) body.append(photoEl(withPhoto.photo_path, "hero-photo", "Photo of " + w.name + " by " + withPhoto.reviewer));
     body.append(el("div", "winery", w.winery));
     body.append(el("h3", null, (w.vintage ? w.vintage + " " : "") + w.name));
     const bits = [];
@@ -171,6 +208,8 @@ function render() {
       const rv = el("div", "reviews");
       s.rs.slice().sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).forEach(r => {
         const p = el("div", "rev");
+        const th = photoEl(r.photo_path, "thumb", r.reviewer + "'s photo");
+        if (th) p.append(th);
         p.append(el("b", null, r.reviewer));
         p.append(document.createTextNode(" " + "★".repeat(r.stars) + " · " + BUY[r.buy]));
         if (r.note) { p.append(document.createTextNode(" · ")); p.append(el("span", "note", "“" + r.note + "”")); }
@@ -223,17 +262,53 @@ function rateForm(w, mine) {
   ta.placeholder = "Tasting notes, what you ate with it, who drank most of it…";
   ta.value = mine && mine.note ? mine.note : "";
   f.append(ta);
+
+  // Photo: on phones the picker offers the camera or the photo library.
+  let newPhoto = null, removePhoto = false;
+  const ph = el("div", "photo-pick");
+  const prev = el("img", "photo-prev"); prev.alt = "Your photo";
+  const input = el("input"); input.type = "file"; input.accept = "image/*"; input.id = "photo-" + w.id; input.className = "visually-hidden";
+  const pick = el("label", "btn small ghost", "📷 Add a photo"); pick.htmlFor = input.id;
+  const rm = el("button", "linkish", "Remove photo"); rm.type = "button";
+  const pst = el("span", "status");
+  const showPrev = src => { prev.hidden = !src; if (src) prev.src = src; rm.hidden = !src; pick.textContent = src ? "📷 Change photo" : "📷 Add a photo"; };
+  showPrev(mine && mine.photo_path ? photoUrls[mine.photo_path] : null);
+  input.onchange = async () => {
+    const file = input.files && input.files[0]; if (!file) return;
+    pst.className = "status"; pst.textContent = "Getting your photo ready…";
+    try { newPhoto = await shrinkPhoto(file); removePhoto = false; showPrev(URL.createObjectURL(newPhoto)); pst.textContent = ""; }
+    catch (e) { newPhoto = null; pst.className = "status err"; pst.textContent = "That photo couldn't be opened. Try another one, or take a new one."; }
+    input.value = "";
+  };
+  rm.onclick = () => { newPhoto = null; removePhoto = true; showPrev(null); };
+  ph.append(prev, el("div", "actions"));
+  ph.lastChild.append(pick, rm, pst);
+  ph.append(input);
+  f.append(el("div", "label", "Photo of the bottle (optional)"), ph);
   const row = el("div", "actions");
   const save = el("button", "btn small", "Save review"); save.type = "button";
   const st = el("span", "status");
   save.onclick = async () => {
     if (!stars) { st.textContent = "Pick a star score first."; st.className = "status err"; return; }
     if (!buy) { st.textContent = "Say whether you'd buy more."; st.className = "status err"; return; }
-    save.disabled = true; st.className = "status"; st.textContent = "Saving…";
-    const { error } = await sb.from("reviews").upsert({
-      wine_id: w.id, reviewer: me, stars, buy, note: ta.value.trim() || null, updated_at: new Date().toISOString()
-    });
+    save.disabled = true; st.className = "status"; st.textContent = newPhoto ? "Uploading your photo…" : "Saving…";
+    const oldPath = mine && mine.photo_path;
+    let photo_path = oldPath || null;
+    if (newPhoto) {
+      const path = myId + "/" + w.id + "-" + Date.now() + ".jpg";
+      const up = await withTimeout(sb.storage.from(BUCKET).upload(path, newPhoto, { contentType: "image/jpeg" }), 60000);
+      if (up.error) {
+        save.disabled = false; st.className = "status err";
+        st.textContent = up.error.message === "timeout" ? "The photo upload timed out. Check your connection and try again." : "Couldn't upload the photo. Try again.";
+        return;
+      }
+      photo_path = path; st.textContent = "Saving…";
+    } else if (removePhoto) photo_path = null;
+    const row = { wine_id: w.id, reviewer: me, stars, buy, note: ta.value.trim() || null, updated_at: new Date().toISOString() };
+    if (newPhoto || removePhoto || oldPath) row.photo_path = photo_path; // only touch photos when there is one
+    const { error } = await withTimeout(sb.from("reviews").upsert(row));
     if (error) { save.disabled = false; st.className = "status err"; st.textContent = "Couldn't save just now. Try again."; return; }
+    if (oldPath && oldPath !== photo_path) sb.storage.from(BUCKET).remove([oldPath]);
     openRate = null; await load();
   };
   const cancel = el("button", "linkish", "Cancel"); cancel.type = "button"; cancel.onclick = () => { openRate = null; render(); };
@@ -242,6 +317,8 @@ function rateForm(w, mine) {
 }
 
 async function removeWine(id) {
+  const photos = reviews.filter(r => r.wine_id === id && r.photo_path).map(r => r.photo_path);
+  if (photos.length) await sb.storage.from(BUCKET).remove(photos);
   const { error } = await sb.from("wines").delete().eq("id", id);
   confirmDel = null;
   if (error) flash("Couldn't remove that bottle. Try again.", true);

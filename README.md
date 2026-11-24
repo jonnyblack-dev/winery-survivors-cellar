@@ -10,6 +10,7 @@ A small private website where the crew from the November 2026 South Australia wi
 - `config.js`: the Supabase project URL and anon (public) key. Never put the service_role key here.
 - `setup.sql`: run once in Supabase SQL Editor to create the tables and access rules.
 - `setup-grants.sql`: run after `setup.sql` so signed-in people can use the tables (newer Supabase projects need it).
+- `setup-photos.sql`: adds wine photos on reviews (a private storage bucket only the crew can see).
 - `setup-join.sql`: run once after `setup.sql` to turn on sign-up by join link. It prints the secret join code.
 
 ## Adding someone
