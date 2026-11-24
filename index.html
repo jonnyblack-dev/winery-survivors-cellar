@@ -112,9 +112,20 @@ form.add .full{grid-column:1/-1}
     </form>
   </section>
 
+  <section class="panel login" id="join" hidden>
+    <h2 style="font-size:1.15rem">Join the crew</h2>
+    <p class="sub" style="margin-top:4px">You're signed in. Tell us what to call you on the reviews.</p>
+    <form id="join-form">
+      <label class="label" for="join-name">Your first name</label>
+      <input id="join-name" required maxlength="30" autocomplete="given-name" placeholder="e.g. Holly">
+      <button class="btn" type="submit" id="join-btn">Join</button>
+      <span class="status" id="join-status"></span>
+    </form>
+  </section>
+
   <section class="panel" id="denied" hidden>
-    <h2 style="font-size:1.15rem">You're not on the crew list yet</h2>
-    <p class="sub" id="denied-text">Ask Jonny to add your email address, then sign in again.</p>
+    <h2 style="font-size:1.15rem">You're not in the crew yet</h2>
+    <p class="sub" id="denied-text">You need the join link from Jonny. Open it, then sign in again.</p>
     <p><button class="btn ghost small" type="button" id="denied-out">Sign out</button></p>
   </section>
 

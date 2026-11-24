@@ -6,6 +6,14 @@ const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
 const show = (id, on) => { $(id).hidden = !on; };
 
+// A join link looks like https://…/winery-survivors-cellar/?join=CODE
+let joinCode = null;
+try {
+  const q = new URLSearchParams(location.search).get("join");
+  if (q) { joinCode = q; localStorage.setItem("cellar-join", q); }
+  else joinCode = localStorage.getItem("cellar-join");
+} catch (e) { joinCode = new URLSearchParams(location.search).get("join"); }
+
 let sb = null, me = null, wines = [], reviews = [], openRate = null, confirmDel = null;
 
 function flash(text, isErr) {
@@ -30,18 +38,22 @@ async function route(session) {
   const key = session ? session.user.id : "none";
   if (routing === key) return; routing = key;
   show("boot", false);
-  if (!session) { me = null; show("app", false); show("denied", false); show("login", true); return; }
+  if (!session) { me = null; show("app", false); show("denied", false); show("join", false); show("login", true); return; }
   show("login", false);
   const email = (session.user.email || "").toLowerCase();
   const { data, error } = await sb.from("crew").select("name,email");
   const row = (data || []).find(r => r.email.toLowerCase() === email);
   if (error || !row) {
-    $("denied-text").textContent = "Ask Jonny to add " + (session.user.email || "your email") + " to the list, then sign in again.";
-    show("denied", true); show("app", false); return;
+    show("app", false);
+    if (joinCode) { show("denied", false); show("join", true); $("join-name").focus(); return; }
+    $("denied-text").textContent = "You're signed in as " + (session.user.email || "an unknown email") + ", but you need the join link from Jonny. Open it, then sign in again.";
+    show("join", false); show("denied", true); return;
   }
+  try { localStorage.removeItem("cellar-join"); } catch (e) {}
+  if (location.search) history.replaceState(null, "", location.pathname);
   me = row.name;
   $("who").textContent = "Signed in as " + me;
-  show("denied", false); show("app", true);
+  show("denied", false); show("join", false); show("app", true);
   await load();
 }
 
@@ -51,11 +63,22 @@ $("login-form").addEventListener("submit", async ev => {
   $("login-btn").disabled = true;
   const { error } = await sb.auth.signInWithOtp({
     email: $("email").value.trim(),
-    options: { emailRedirectTo: location.origin + location.pathname }
+    options: { emailRedirectTo: location.origin + location.pathname + (joinCode ? "?join=" + encodeURIComponent(joinCode) : "") }
   });
   $("login-btn").disabled = false;
   if (error) { st.className = "status err"; st.textContent = "Couldn't send the link: " + error.message; }
   else st.textContent = "Check your email and tap the link. It may take a minute, and check your junk folder.";
+});
+$("join-form").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const st = $("join-status"); st.className = "status"; st.textContent = "Joining…";
+  $("join-btn").disabled = true;
+  const { error } = await sb.rpc("join_crew", { code: joinCode, display_name: $("join-name").value.trim() });
+  $("join-btn").disabled = false;
+  if (error) { st.className = "status err"; st.textContent = error.message; return; }
+  st.textContent = "";
+  const { data } = await sb.auth.getSession();
+  routing = null; route(data.session);
 });
 const signOut = async () => { await sb.auth.signOut(); routing = null; route(null); };
 $("signout").onclick = signOut; $("denied-out").onclick = signOut;

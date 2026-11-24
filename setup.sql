@@ -69,13 +69,5 @@ create policy reviews_add    on public.reviews for insert to authenticated with 
 create policy reviews_edit   on public.reviews for update to authenticated using (reviewer = public.my_name()) with check (reviewer = public.my_name());
 create policy reviews_remove on public.reviews for delete to authenticated using (reviewer = public.my_name());
 
--- STEP 2: put each person's real email address in place of the examples, then run again
--- (or add rows later in Table Editor > crew). Keep the names exactly as written.
--- insert into public.crew (email, name) values
---   ('jonny@example.com',     'Jonny'),
---   ('shantelle@example.com', 'Shantelle'),
---   ('luke@example.com',      'Luke'),
---   ('meg@example.com',       'Meg'),
---   ('lisa@example.com',      'Lisa'),
---   ('marcus@example.com',    'Marcus'),
---   ('holly@example.com',     'Holly');
+-- Next: run setup-join.sql to turn on sign-up with a join link.
+-- (Or add people by hand in Table Editor > crew: their email and first name.)
