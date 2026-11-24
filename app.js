@@ -81,7 +81,12 @@ $("login-form").addEventListener("submit", async ev => {
     options: { emailRedirectTo: location.origin + location.pathname + (joinCode ? "?join=" + encodeURIComponent(joinCode) : "") }
   });
   $("login-btn").disabled = false;
-  if (error) { st.className = "status err"; st.textContent = "Couldn't send the link: " + error.message; }
+  if (error) {
+    st.className = "status err";
+    st.textContent = /rate limit|too many|seconds/i.test(error.message)
+      ? "Too many sign-in emails have gone out just now. Wait a few minutes and try again. If you already asked for a link, check your inbox (and junk folder) for it."
+      : "Couldn't send the link: " + error.message;
+  }
   else st.textContent = "Check your email and tap the link. It may take a minute, and check your junk folder.";
 });
 $("join-form").addEventListener("submit", async ev => {
