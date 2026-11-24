@@ -122,7 +122,7 @@ async function load() {
 const BUCKET = "wine-photos";
 // The bucket is private, so each photo needs a short-lived signed link.
 async function signPhotos() {
-  const paths = reviews.map(r => r.photo_path).filter(p => p && !photoUrls[p]);
+  const paths = [...wines, ...reviews].map(r => r.photo_path).filter(p => p && !photoUrls[p]);
   if (!paths.length) return;
   const { data, error } = await withTimeout(sb.storage.from(BUCKET).createSignedUrls(paths, 60 * 60 * 6));
   if (error || !data) return;
@@ -184,9 +184,13 @@ function render() {
     const card = el("article", "wine" + (ranked && i === 0 && s.rs.length ? " top" : ""));
     card.append(el("div", "rank", String(i + 1)));
     const body = el("div", "body");
-    const withPhoto = s.rs.filter(r => r.photo_path && photoUrls[r.photo_path])
-      .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))[0];
-    if (withPhoto) body.append(photoEl(withPhoto.photo_path, "hero-photo", "Photo of " + w.name + " by " + withPhoto.reviewer));
+    // The bottle's own photo, or else the newest photo from a review.
+    if (w.photo_path && photoUrls[w.photo_path]) body.append(photoEl(w.photo_path, "hero-photo", "Photo of " + w.name));
+    else {
+      const withPhoto = s.rs.filter(r => r.photo_path && photoUrls[r.photo_path])
+        .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))[0];
+      if (withPhoto) body.append(photoEl(withPhoto.photo_path, "hero-photo", "Photo of " + w.name + " by " + withPhoto.reviewer));
+    }
     body.append(el("div", "winery", w.winery));
     body.append(el("h3", null, (w.vintage ? w.vintage + " " : "") + w.name));
     const bits = [];
@@ -235,7 +239,16 @@ function render() {
     if (canManage) {
       const eb = el("button", "linkish", "Edit bottle"); eb.type = "button";
       eb.onclick = () => startEditWine(w);
-      acts.append(eb);
+      // Quick photo button right on the bottle.
+      const inp = el("input"); inp.type = "file"; inp.accept = "image/*"; inp.id = "bp-" + w.id; inp.className = "visually-hidden";
+      const pl = el("label", "linkish", w.photo_path ? "📷 Change photo" : "📷 Add a photo"); pl.htmlFor = inp.id; pl.style.cursor = "pointer";
+      inp.onchange = async () => {
+        const file = inp.files && inp.files[0]; inp.value = ""; if (!file) return;
+        flash("Uploading the photo…");
+        const res = await setBottlePhoto(w, file);
+        if (res) flash(res, true); else { flash(""); await load(); }
+      };
+      acts.append(eb, pl, inp);
     }
     // Only the person who added a bottle, or an admin, can remove it.
     if (canManage && confirmDel === w.id) {
@@ -335,7 +348,9 @@ function rateForm(w, mine, who) {
 }
 
 async function removeWine(id) {
+  const w = wines.find(x => x.id === id);
   const photos = reviews.filter(r => r.wine_id === id && r.photo_path).map(r => r.photo_path);
+  if (w && w.photo_path) photos.push(w.photo_path);
   if (photos.length) await sb.storage.from(BUCKET).remove(photos);
   const { error } = await sb.from("wines").delete().eq("id", id);
   confirmDel = null;
@@ -350,7 +365,43 @@ function fillSelects() {
   const f = $("filter"); f.replaceChildren(new Option("All wineries", ""));
   WINERIES.forEach(x => f.add(new Option(x, x)));
 }
+// Shrink, upload and attach a photo to a bottle. Returns an error message, or null.
+async function uploadPhoto(blob, wineId) {
+  const path = myId + "/bottle-" + wineId + "-" + Date.now() + ".jpg";
+  const up = await withTimeout(sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg" }), 60000);
+  return up.error ? { error: up.error.message === "timeout" ? "The photo upload timed out. Check your connection and try again." : "Couldn't upload the photo. Try again." } : { path };
+}
+async function setBottlePhoto(w, file) {
+  let blob;
+  try { blob = await shrinkPhoto(file); } catch (e) { return "That photo couldn't be opened. Try another one."; }
+  const up = await uploadPhoto(blob, w.id);
+  if (up.error) return up.error;
+  const { data, error } = await withTimeout(sb.from("wines").update({ photo_path: up.path }).eq("id", w.id).select("id"));
+  if (error || !data || !data.length) {
+    sb.storage.from(BUCKET).remove([up.path]);
+    return error ? "Couldn't save the photo on the bottle. Try again." : "Only the person who added this bottle, or an admin, can change its photo.";
+  }
+  if (w.photo_path) sb.storage.from(BUCKET).remove([w.photo_path]);
+  return null;
+}
+
+// Photo picker inside the add / edit bottle form.
+let formPhoto = null, formPhotoRemoved = false, formOldPhoto = null;
+function showFormPhoto(src) {
+  $("f-photo-prev").hidden = !src; if (src) $("f-photo-prev").src = src;
+  $("f-photo-remove").hidden = !src;
+  $("f-photo-pick").textContent = src ? "📷 Change photo" : "📷 Add a photo";
+}
+$("f-photo").onchange = async () => {
+  const file = $("f-photo").files && $("f-photo").files[0]; $("f-photo").value = ""; if (!file) return;
+  const st = $("f-photo-status"); st.className = "status"; st.textContent = "Getting your photo ready…";
+  try { formPhoto = await shrinkPhoto(file); formPhotoRemoved = false; showFormPhoto(URL.createObjectURL(formPhoto)); st.textContent = ""; }
+  catch (e) { formPhoto = null; st.className = "status err"; st.textContent = "That photo couldn't be opened. Try another one."; }
+};
+$("f-photo-remove").onclick = () => { formPhoto = null; formPhotoRemoved = true; showFormPhoto(null); };
+
 function closeWineForm() {
+  formPhoto = null; formPhotoRemoved = false; formOldPhoto = null; showFormPhoto(null); $("f-photo-status").textContent = "";
   editingWine = null; show("add-panel", false); $("add-form").reset(); $("add-status").textContent = "";
   $("add-title").textContent = "Add a bottle"; $("add-btn").textContent = "Add bottle";
 }
@@ -360,6 +411,8 @@ function startEditWine(w) {
   $("f-name").value = w.name || ""; $("f-vintage").value = w.vintage || "";
   $("f-price").value = w.price != null ? Number(w.price).toFixed(2).replace(/\.00$/, "") : "";
   $("f-bottles").value = w.bottles != null ? w.bottles : "";
+  formPhoto = null; formPhotoRemoved = false; formOldPhoto = w.photo_path || null;
+  showFormPhoto(formOldPhoto ? photoUrls[formOldPhoto] : null);
   $("add-title").textContent = "Edit bottle"; $("add-btn").textContent = "Save changes";
   $("add-status").textContent = ""; show("add-panel", true);
   $("add-panel").scrollIntoView({ behavior: "smooth", block: "start" }); $("f-name").focus({ preventScroll: true });
@@ -378,13 +431,22 @@ $("add-form").addEventListener("submit", async ev => {
     winery: $("f-winery").value, name: $("f-name").value.trim(),
     vintage: vintage || null, price: price ? Number(price) : null, bottles: bottles ? Number(bottles) : null
   };
-  $("add-btn").disabled = true; st.textContent = editingWine ? "Saving…" : "Adding…";
+  $("add-btn").disabled = true;
+  const wineId = editingWine || crypto.randomUUID();
+  if (formPhoto) {
+    st.textContent = "Uploading the photo…";
+    const up = await uploadPhoto(formPhoto, wineId);
+    if (up.error) { $("add-btn").disabled = false; return bad(up.error); }
+    fields.photo_path = up.path;
+  } else if (formPhotoRemoved && formOldPhoto) fields.photo_path = null;
+  st.textContent = editingWine ? "Saving…" : "Adding…";
   const { data, error } = editingWine
     ? await withTimeout(sb.from("wines").update(fields).eq("id", editingWine).select("id"))
-    : await withTimeout(sb.from("wines").insert({ ...fields, added_by: me }));
+    : await withTimeout(sb.from("wines").insert({ ...fields, id: wineId, added_by: me }));
   $("add-btn").disabled = false;
   if (error) return bad(editingWine ? "Couldn't save the changes. Try again." : "Couldn't add it just now. Try again.");
   if (editingWine && (!data || !data.length)) return bad("Only the person who added this bottle, or an admin, can change it.");
+  if (formOldPhoto && "photo_path" in fields) sb.storage.from(BUCKET).remove([formOldPhoto]);
   closeWineForm();
   await load();
 });
