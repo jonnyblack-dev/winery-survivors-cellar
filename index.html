@@ -158,6 +158,14 @@ label.btn{display:inline-block;cursor:pointer}
           <input id="f-price" inputmode="decimal" maxlength="7" placeholder="optional"></div>
         <div class="field full"><label class="label" for="f-bottles">Bottles you bought</label>
           <input id="f-bottles" inputmode="numeric" maxlength="3" placeholder="optional"></div>
+        <div class="field full photo-pick"><span class="label">Photo of the bottle (optional)</span>
+          <img id="f-photo-prev" class="photo-prev" alt="Bottle photo" hidden>
+          <div class="actions">
+            <label class="btn small ghost" for="f-photo" id="f-photo-pick">📷 Add a photo</label>
+            <button class="linkish" type="button" id="f-photo-remove" hidden>Remove photo</button>
+            <span class="status" id="f-photo-status"></span>
+          </div>
+          <input id="f-photo" type="file" accept="image/*" class="visually-hidden"></div>
         <div class="actions full">
           <button class="btn" type="submit" id="add-btn">Add bottle</button>
           <button class="btn ghost" type="button" id="add-cancel">Cancel</button>
