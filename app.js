@@ -47,8 +47,15 @@ async function route(session) {
   show("login", false);
   const email = (session.user.email || "").toLowerCase();
   const { data, error } = await withTimeout(sb.from("crew").select("name,email"));
+  if (error) {
+    show("app", false); show("join", false);
+    $("denied-text").textContent = error.message === "timeout"
+      ? "The cellar isn't answering. Check your internet connection and reload the page."
+      : "The cellar couldn't check the crew list (" + error.message + "). Let Jonny know.";
+    show("denied", true); routing = null; return;
+  }
   const row = (data || []).find(r => r.email.toLowerCase() === email);
-  if (error || !row) {
+  if (!row) {
     show("app", false);
     if (joinCode) { show("denied", false); show("join", true); $("join-name").focus(); return; }
     $("denied-text").textContent = "You're signed in as " + (session.user.email || "an unknown email") + ", but you need the join link from Jonny. Open it, then sign in again.";
