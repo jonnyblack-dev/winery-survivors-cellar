@@ -247,7 +247,7 @@ function render() {
         if (th) p.append(th);
         p.append(el("b", null, r.reviewer));
         p.append(document.createTextNode(" " + "★".repeat(r.stars) + " · " + BUY[r.buy]));
-        if (r.note) { p.append(document.createTextNode(" · ")); p.append(el("span", "note", "“" + r.note + "”")); }
+        if (r.note) p.append(el("span", "note", "“" + r.note + "”"));
         if (isAdmin && r.reviewer !== me) {
           const ed = el("button", "linkish", "Edit"); ed.type = "button";
           ed.setAttribute("aria-label", "Edit " + r.reviewer + "'s review");
@@ -320,7 +320,7 @@ function rateForm(w, mine, who) {
     seg.append(b);
   });
   f.append(seg);
-  const ta = el("textarea"); ta.id = "note-" + w.id; ta.maxLength = 400; ta.setAttribute("aria-label", "Tasting notes");
+  const ta = el("textarea"); ta.id = "note-" + w.id; ta.maxLength = 2000; ta.rows = 5; ta.setAttribute("aria-label", "Tasting notes");
   ta.placeholder = "Tasting notes, what you ate with it, who drank most of it…";
   ta.value = mine && mine.note ? mine.note : "";
   f.append(ta);

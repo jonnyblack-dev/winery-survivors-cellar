@@ -26,7 +26,7 @@ create table if not exists public.reviews (
   reviewer   text not null,
   stars      int  not null check (stars between 1 and 5),
   buy        text not null check (buy in ('yes','maybe','no')),
-  note       text check (note is null or char_length(note) <= 400),
+  note       text check (note is null or char_length(note) <= 2000),
   updated_at timestamptz not null default now(),
   primary key (wine_id, reviewer)
 );
