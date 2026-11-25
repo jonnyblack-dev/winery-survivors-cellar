@@ -1,5 +1,21 @@
 // Winery Survivors Cellar: the whole app. Data lives in Supabase (see setup.sql).
 const WINERIES = ["Riesling Freak","Langmeil","Z Wine","Hentley Farm","Max and Me","Henschke","Poonawatta","Soul Growers","Shut the Gate","Pikes","Kilikanoon","O'Leary Walker","Pike & Joyce","Somewhere else"];
+// Each winery's own website (checked 25 Nov 2026).
+const WINERY_SITES = {
+  "Riesling Freak": "https://rieslingfreak.com/",
+  "Langmeil": "https://www.langmeilwinery.com.au/",
+  "Z Wine": "https://zwine.com.au/",
+  "Hentley Farm": "https://hentleyfarm.com.au/",
+  "Max and Me": "https://www.maxandme.com.au/",
+  "Henschke": "https://www.henschke.com.au/",
+  "Poonawatta": "https://www.poonawatta.com.au/",
+  "Soul Growers": "https://www.soulgrowers.com/",
+  "Shut the Gate": "https://shutthegate.com.au/",
+  "Pikes": "https://pikeswines.com.au/",
+  "Kilikanoon": "https://kilikanoon.com.au/",
+  "O'Leary Walker": "https://www.olearywalkerwines.com/",
+  "Pike & Joyce": "https://pikeandjoyce.com.au/"
+};
 const BUY = { yes: "Buy more", maybe: "Maybe", no: "Don't bother" };
 
 const $ = id => document.getElementById(id);
@@ -196,7 +212,12 @@ function render() {
         .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))[0];
       if (withPhoto) body.append(photoEl(withPhoto.photo_path, "hero-photo", "Photo of " + w.name + " by " + withPhoto.reviewer));
     }
-    body.append(el("div", "winery", w.winery));
+    const site = WINERY_SITES[w.winery];
+    if (site) {
+      const wl = el("a", "winery", w.winery + " ↗"); wl.href = site; wl.target = "_blank"; wl.rel = "noopener";
+      wl.title = "Visit " + w.winery + "'s website";
+      body.append(wl);
+    } else body.append(el("div", "winery", w.winery));
     body.append(el("h3", null, (w.vintage ? w.vintage + " " : "") + w.name));
     const bits = [];
     if (w.price != null) bits.push("A$" + Number(w.price).toFixed(2).replace(/\.00$/, "") + " a bottle");
@@ -209,7 +230,12 @@ function render() {
       sc.append(el("span", "stars", starStr(s.avg)));
       sc.append(el("span", "avg", s.avg.toFixed(1) + " from " + s.rs.length + (s.rs.length === 1 ? " review" : " reviews")));
       ["yes", "maybe", "no"].forEach(k => { if (s.tally[k]) sc.append(el("span", "pill " + k, BUY[k] + " ×" + s.tally[k])); });
-      if (s.rs.length >= 2 && s.tally.yes > s.rs.length / 2) sc.append(el("span", "pill verdict", "Reorder this one"));
+      if (s.rs.length >= 2 && s.tally.yes > s.rs.length / 2) {
+        // Link the badge to the winery's site so it's one tap to reorder.
+        const v = el(site ? "a" : "span", "pill verdict", site ? "Reorder this one ↗" : "Reorder this one");
+        if (site) { v.href = site; v.target = "_blank"; v.rel = "noopener"; v.style.textDecoration = "none"; }
+        sc.append(v);
+      }
     } else sc.append(el("span", "meta", "No reviews yet"));
     body.append(sc);
 
