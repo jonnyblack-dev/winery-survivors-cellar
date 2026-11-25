@@ -28,21 +28,31 @@ Deno.serve(async (req) => {
     const { data: { user } } = await admin.auth.getUser(token);
     if (!user?.email) { console.log("Rejected: not signed in"); return json({ error: "Not signed in" }, 401); }
     const { data: crew, error: crewErr } = await admin.from("crew").select("name, email, notify");
-    if (crewErr || !crew) return json({ error: "Couldn't read the crew list" }, 500);
+    if (crewErr || !crew) {
+      console.error("Couldn't read the crew list:", crewErr?.message);
+      return json({ error: "Couldn't read the crew list: " + (crewErr?.message ?? "no rows") }, 500);
+    }
     if (!crew.some((c) => c.email.toLowerCase() === user.email!.toLowerCase())) return json({ error: "Not in the crew" }, 403);
 
     const { wine_id, reviewer } = await req.json();
     if (!wine_id || !reviewer) return json({ error: "Missing review" }, 400);
 
     // Claim the review so it is only ever announced once.
-    const { data: claimed } = await admin.from("reviews")
+    const { data: claimed, error: claimErr } = await admin.from("reviews")
       .update({ notified_at: new Date().toISOString() })
       .eq("wine_id", wine_id).eq("reviewer", reviewer).is("notified_at", null)
       .select("*");
+    if (claimErr) {
+      console.error("Couldn't mark the review:", claimErr.message);
+      return json({ error: "Couldn't mark the review: " + claimErr.message }, 500);
+    }
     if (!claimed?.length) { console.log("Skipped: review already announced", wine_id, reviewer); return json({ skipped: "Already announced" }); }
     const r = claimed[0];
-    const { data: w } = await admin.from("wines").select("*").eq("id", wine_id).single();
-    if (!w) return json({ error: "Bottle not found" }, 404);
+    const { data: w, error: wErr } = await admin.from("wines").select("*").eq("id", wine_id).single();
+    if (!w) {
+      console.error("Bottle not found:", wErr?.message);
+      return json({ error: "Bottle not found" + (wErr ? ": " + wErr.message : "") }, 404);
+    }
 
     const to = crew.filter((c) => c.notify !== false && c.name !== r.reviewer).map((c) => c.email);
     if (!to.length) return json({ sent: 0 });
@@ -72,7 +82,13 @@ ${r.note ? `<blockquote style="margin:0;padding:8px 12px;border-left:3px solid #
       auth: { user: gmailUser, pass: Deno.env.get("GMAIL_APP_PASSWORD")! },
     });
     // One email, everyone in BCC so addresses stay private.
-    await transport.sendMail({ from: `"Winery Survivors Cellar" <${gmailUser}>`, to: gmailUser, bcc: to, subject, text, html });
+    try {
+      await transport.sendMail({ from: `"Winery Survivors Cellar" <${gmailUser}>`, to: gmailUser, bcc: to, subject, text, html });
+    } catch (e) {
+      // Un-mark the review so saving it again retries the email.
+      await admin.from("reviews").update({ notified_at: null }).eq("wine_id", wine_id).eq("reviewer", reviewer);
+      throw e;
+    }
     console.log("Emailed", to.length, "crew about", reviewer + "'s review");
     return json({ sent: to.length });
   } catch (e) {
