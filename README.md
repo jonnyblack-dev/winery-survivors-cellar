@@ -12,6 +12,7 @@ A small private website where the crew from the November 2026 South Australia wi
 - `setup-grants.sql`: run after `setup.sql` so signed-in people can use the tables (newer Supabase projects need it).
 - `setup-photos.sql`: adds wine photos on reviews (a private storage bucket only the crew can see).
 - `setup-bottle-photos.sql`: lets each bottle have its own main photo (run after `setup-photos.sql`).
+- `setup-longer-notes.sql`: raises the tasting-note limit from 400 to 2,000 characters.
 - `setup-admin.sql`: makes Jonny an admin who can edit any bottle, review or photo. To make someone else an admin: `update crew set is_admin = true where name = 'Name';`
 - `setup-join.sql`: run once after `setup.sql` to turn on sign-up by join link. It prints the secret join code.
 
