@@ -39,7 +39,7 @@ function flash(text, isErr) {
   clearTimeout(flashTimer);
   // Errors stay until tapped, so there's time to read or copy them.
   m.title = isErr ? "Tap to close" : "";
-  m.onclick = isErr ? () => { m.hidden = true; } : null;
+  m.onclick = isErr ? () => { if (!String(getSelection())) m.hidden = true; } : null;
   if (text && !isErr && !text.endsWith("…")) flashTimer = setTimeout(() => { m.hidden = true; }, 8000);
 }
 
