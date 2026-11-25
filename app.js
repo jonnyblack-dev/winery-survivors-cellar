@@ -380,10 +380,19 @@ function rateForm(w, mine, who) {
     const { error } = await withTimeout(sb.from("reviews").upsert(row));
     if (error) { save.disabled = false; st.className = "status err"; st.textContent = "Couldn't save just now. Try again."; return; }
     if (oldPath && oldPath !== photo_path) sb.storage.from(BUCKET).remove([oldPath]);
-    // A brand-new review: ask the server to email the rest of the crew (once).
-    if (!mine) sb.functions.invoke("notify-review", { body: { wine_id: w.id, reviewer: who } })
-      .then(({ error }) => { if (error) console.warn("Review email not sent:", error.message); });
     openRate = null; await load();
+    // Ask the server to email the rest of the crew. It only ever announces a review once,
+    // so saving an edit doesn't email everyone again.
+    flash("Review saved. Emailing the crew…");
+    const res = await withTimeout(sb.functions.invoke("notify-review", { body: { wine_id: w.id, reviewer: who } }), 30000)
+      .catch(e => ({ error: e }));
+    if (res.error) {
+      let why = res.error.message || String(res.error);
+      try { const b = await res.error.context.json(); if (b && b.error) why = b.error; } catch (_) {}
+      console.warn("Review email not sent:", why);
+      flash("Review saved, but the email to the crew didn't send (" + why + ").", true);
+    } else if (res.data && res.data.sent) flash("Review saved and emailed to " + res.data.sent + " of the crew.");
+    else flash("Review saved.");
   };
   const cancel = el("button", "linkish", "Cancel"); cancel.type = "button"; cancel.onclick = () => { openRate = null; render(); };
   row.append(save, cancel, st); f.append(row);

@@ -19,13 +19,14 @@ const esc = (s: string) =>
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  console.log("notify-review called");
   try {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     // Who is asking? They must be signed in and on the crew list.
     const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer /, "");
     const { data: { user } } = await admin.auth.getUser(token);
-    if (!user?.email) return json({ error: "Not signed in" }, 401);
+    if (!user?.email) { console.log("Rejected: not signed in"); return json({ error: "Not signed in" }, 401); }
     const { data: crew, error: crewErr } = await admin.from("crew").select("name, email, notify");
     if (crewErr || !crew) return json({ error: "Couldn't read the crew list" }, 500);
     if (!crew.some((c) => c.email.toLowerCase() === user.email!.toLowerCase())) return json({ error: "Not in the crew" }, 403);
@@ -38,7 +39,7 @@ Deno.serve(async (req) => {
       .update({ notified_at: new Date().toISOString() })
       .eq("wine_id", wine_id).eq("reviewer", reviewer).is("notified_at", null)
       .select("*");
-    if (!claimed?.length) return json({ skipped: "Already announced" });
+    if (!claimed?.length) { console.log("Skipped: review already announced", wine_id, reviewer); return json({ skipped: "Already announced" }); }
     const r = claimed[0];
     const { data: w } = await admin.from("wines").select("*").eq("id", wine_id).single();
     if (!w) return json({ error: "Bottle not found" }, 404);
@@ -72,8 +73,10 @@ ${r.note ? `<blockquote style="margin:0;padding:8px 12px;border-left:3px solid #
     });
     // One email, everyone in BCC so addresses stay private.
     await transport.sendMail({ from: `"Winery Survivors Cellar" <${gmailUser}>`, to: gmailUser, bcc: to, subject, text, html });
+    console.log("Emailed", to.length, "crew about", reviewer + "'s review");
     return json({ sent: to.length });
   } catch (e) {
+    console.error("notify-review failed:", e);
     return json({ error: String((e as Error)?.message ?? e) }, 500);
   }
 });
