@@ -6,6 +6,7 @@
 <title>Winery Survivors Cellar</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
+<script>try{var t=localStorage.getItem("cellar-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 <style>
 /* Layout: one narrow column; a crew bar up top, then a ranked list of bottles, each with its own rating drawer. */
 :root{
@@ -148,7 +149,8 @@ a.winery:hover{text-decoration:underline}
     <div class="topbar">
       <p class="who-note" id="who" style="margin:0"></p>
       <label class="notify" id="notify-wrap" hidden><input type="checkbox" id="notify"> Email me about new reviews</label>
-      <button class="linkish" type="button" id="signout">Sign out</button>
+      <span class="actions" style="gap:14px"><button class="linkish" type="button" id="theme-toggle"></button>
+      <button class="linkish" type="button" id="signout">Sign out</button></span>
     </div>
 
     <section class="panel" id="add-panel" hidden>
@@ -200,7 +202,7 @@ a.winery:hover{text-decoration:underline}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="config.js?v=13"></script>
-<script src="app.js?v=13"></script>
+<script src="config.js?v=14"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>
