@@ -37,7 +37,10 @@ let flashTimer = null;
 function flash(text, isErr) {
   const m = $("msg"); m.textContent = text || ""; m.className = "status" + (isErr ? " err" : ""); m.hidden = !text;
   clearTimeout(flashTimer);
-  if (text && !text.endsWith("…")) flashTimer = setTimeout(() => { m.hidden = true; }, isErr ? 15000 : 8000);
+  // Errors stay until tapped, so there's time to read or copy them.
+  m.title = isErr ? "Tap to close" : "";
+  m.onclick = isErr ? () => { if (!String(getSelection())) m.hidden = true; } : null;
+  if (text && !isErr && !text.endsWith("…")) flashTimer = setTimeout(() => { m.hidden = true; }, 8000);
 }
 
 /* ---------- sign in ---------- */

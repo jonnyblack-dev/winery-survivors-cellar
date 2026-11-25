@@ -13,7 +13,7 @@ A small private website where the crew from the November 2026 South Australia wi
 - `setup-photos.sql`: adds wine photos on reviews (a private storage bucket only the crew can see).
 - `setup-bottle-photos.sql`: lets each bottle have its own main photo (run after `setup-photos.sql`).
 - `setup-longer-notes.sql`: raises the tasting-note limit from 400 to 2,000 characters.
-- `setup-notify.sql` + `supabase/functions/notify-review/`: emails the crew (only the crew) when someone posts a new review, through Gmail. Needs the Edge Function deployed and the secrets `GMAIL_USER` and `GMAIL_APP_PASSWORD`. Members can untick "Email me about new reviews".
+- `setup-notify.sql` + `supabase/functions/notify-review/`: emails the crew (only the crew) when someone posts a new review, through Gmail. Needs the Edge Function deployed and the secrets `GMAIL_USER` and `GMAIL_APP_PASSWORD`. Members can untick "Email me about new reviews". Also run `setup-email-grants.sql` so the function can read the crew list.
 - `setup-admin.sql`: makes Jonny an admin who can edit any bottle, review or photo. To make someone else an admin: `update crew set is_admin = true where name = 'Name';`
 - `setup-join.sql`: run once after `setup.sql` to turn on sign-up by join link. It prints the secret join code.
 

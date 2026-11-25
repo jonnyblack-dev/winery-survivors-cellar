@@ -54,7 +54,7 @@ textarea{resize:vertical;min-height:70px;width:100%}
 .status.err{color:var(--no)}
 .status.ok{color:var(--yes);font-weight:600}
 #msg{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;width:max-content;max-width:calc(100% - 32px);margin:0;padding:10px 14px;border-radius:10px;background:var(--surface);color:var(--fg);border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.18)}
-#msg.err{color:var(--no)}
+#msg.err{color:var(--no);cursor:pointer;user-select:text}
 form.add{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 form.add .full{grid-column:1/-1}
 @media (max-width:520px){form.add{grid-template-columns:1fr}}
@@ -200,7 +200,7 @@ a.winery:hover{text-decoration:underline}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="config.js?v=12"></script>
-<script src="app.js?v=12"></script>
+<script src="config.js?v=13"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>
