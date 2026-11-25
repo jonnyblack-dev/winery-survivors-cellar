@@ -84,6 +84,9 @@ async function route(session) {
   if (location.search) history.replaceState(null, "", location.pathname);
   me = row.name; myId = session.user.id; isAdmin = row.is_admin === true;
   $("who").textContent = "Signed in as " + me + (isAdmin ? " · admin" : "");
+  // Email opt-out switch (only once setup-notify.sql has added the column).
+  $("notify-wrap").hidden = typeof row.notify !== "boolean";
+  $("notify").checked = row.notify !== false;
   show("denied", false); show("join", false); show("app", true);
   await load();
 }
@@ -125,6 +128,12 @@ $("join-form").addEventListener("submit", async ev => {
   routing = null;
   setTimeout(() => { btn.disabled = false; btn.textContent = "Join"; st.textContent = ""; route(data.session); }, 900);
 });
+$("notify").onchange = async () => {
+  const want = $("notify").checked;
+  const { error } = await withTimeout(sb.rpc("set_my_notify", { on_off: want }));
+  if (error) { $("notify").checked = !want; flash("Couldn't change your email setting. Try again.", true); }
+  else flash(want ? "You'll get an email when someone posts a review." : "No more review emails for you.");
+};
 const signOut = async () => { await sb.auth.signOut(); routing = null; route(null); };
 $("signout").onclick = signOut; $("denied-out").onclick = signOut;
 
@@ -371,6 +380,9 @@ function rateForm(w, mine, who) {
     const { error } = await withTimeout(sb.from("reviews").upsert(row));
     if (error) { save.disabled = false; st.className = "status err"; st.textContent = "Couldn't save just now. Try again."; return; }
     if (oldPath && oldPath !== photo_path) sb.storage.from(BUCKET).remove([oldPath]);
+    // A brand-new review: ask the server to email the rest of the crew (once).
+    if (!mine) sb.functions.invoke("notify-review", { body: { wine_id: w.id, reviewer: who } })
+      .then(({ error }) => { if (error) console.warn("Review email not sent:", error.message); });
     openRate = null; await load();
   };
   const cancel = el("button", "linkish", "Cancel"); cancel.type = "button"; cancel.onclick = () => { openRate = null; render(); };
