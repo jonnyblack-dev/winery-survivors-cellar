@@ -33,8 +33,11 @@ try {
 let myId = null, photoUrls = {}, isAdmin = false, editingWine = null;
 let sb = null, me = null, wines = [], reviews = [], openRate = null, confirmDel = null;
 
+let flashTimer = null;
 function flash(text, isErr) {
   const m = $("msg"); m.textContent = text || ""; m.className = "status" + (isErr ? " err" : ""); m.hidden = !text;
+  clearTimeout(flashTimer);
+  if (text && !text.endsWith("…")) flashTimer = setTimeout(() => { m.hidden = true; }, isErr ? 15000 : 8000);
 }
 
 /* ---------- sign in ---------- */
