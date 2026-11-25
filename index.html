@@ -101,6 +101,7 @@ label.btn{display:inline-block;cursor:pointer}
 .visually-hidden{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
 a.winery{text-decoration:none;align-self:flex-start}
 a.winery:hover{text-decoration:underline}
+.notify{display:flex;align-items:center;gap:6px;font-size:.88rem;color:var(--muted);cursor:pointer}
 </style>
 </head>
 <body>
@@ -144,6 +145,7 @@ a.winery:hover{text-decoration:underline}
   <div id="app" hidden style="display:flex;flex-direction:column;gap:20px">
     <div class="topbar">
       <p class="who-note" id="who" style="margin:0"></p>
+      <label class="notify" id="notify-wrap" hidden><input type="checkbox" id="notify"> Email me about new reviews</label>
       <button class="linkish" type="button" id="signout">Sign out</button>
     </div>
 
