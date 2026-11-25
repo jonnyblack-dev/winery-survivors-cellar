@@ -33,6 +33,26 @@ try {
 let myId = null, photoUrls = {}, isAdmin = false, editingWine = null;
 let sb = null, me = null, wines = [], reviews = [], openRate = null, confirmDel = null;
 
+/* ---------- light / dark ---------- */
+function isDark() {
+  const t = document.documentElement.dataset.theme;
+  return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function themeLabel() {
+  const b = $("theme-toggle"); if (b) b.textContent = isDark() ? "☀️ Light mode" : "🌙 Dark mode";
+}
+function setupTheme() {
+  const b = $("theme-toggle"); if (!b) return;
+  b.onclick = () => {
+    const t = isDark() ? "light" : "dark";
+    document.documentElement.dataset.theme = t;
+    try { localStorage.setItem("cellar-theme", t); } catch (_) {}
+    themeLabel();
+  };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", themeLabel);
+  themeLabel();
+}
+
 let flashTimer = null;
 function flash(text, isErr) {
   const m = $("msg"); m.textContent = text || ""; m.className = "status" + (isErr ? " err" : ""); m.hidden = !text;
@@ -45,6 +65,7 @@ function flash(text, isErr) {
 
 /* ---------- sign in ---------- */
 async function boot() {
+  setupTheme();
   const cfg = window.CELLAR_CONFIG || {};
   if (!window.supabase || !cfg.supabaseUrl || cfg.supabaseUrl.startsWith("PASTE")) {
     $("boot").textContent = "The site isn't connected to its database yet. Jonny needs to fill in config.js.";
